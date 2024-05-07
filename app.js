@@ -14,7 +14,7 @@ const { baseUrl } = require("./config")
 const http = require("http")
 const swaggerUI = require("swagger-ui-express");
 const swaggerJsDoc = require("swagger-jsdoc");
-const  userData  = require("./data/userData");
+const userData = require("./data/userData");
 const Joi = require("joi");
 const ObjectId = require('bson').ObjectId;
 
@@ -70,70 +70,144 @@ app.get("/", (req, res) => {
   res.send("Hello World")
 })
 //user API
-const data = JSON.parse(JSON.stringify(userData)) 
+const data = JSON.parse(JSON.stringify(userData))
 app.get("/api/users", (req, res) => {
   res.send(data)
 })
+
 app.post("/api/users", (req, res) => {
+  const user = req.body
   if (req.body && typeof req.body === "object" && !Array.isArray(req.body) && req.body !== null) {
+    try {
+      const customJoi = Joi.extend(joi => ({
+        type: 'date',
+        base: joi.date(),
+        messages: {
+          'date.dob': '{{#label}} must be above 18 years'
+        },
+        rules: {
+          above18: {
+            validate(value, helpers) {
+              var diff_ms = Date.now() - new Date(value).getTime();
+              var age_dt = new Date(diff_ms);
+              const total = Math.abs(age_dt.getUTCFullYear() - 1970);
+              console.log('total', total)
+              if (total < 18) {
+                return helpers.error('user age should be above 18 years', { value });
+              }
 
-    const customJoi = Joi.extend(joi => ({
-      type: 'date',
-      base: joi.date(),
-      messages: {
-        'date.dob': '{{#label}} must be above 18 years'
-      },
-      rules: {
-        above18: {
-          validate(value, helpers) {
-
-            var diff_ms = Date.now() - new Date(value).getTime();
-            var age_dt = new Date(diff_ms);
-            console.log(age_dt)
-            const total = Math.abs(age_dt.getUTCFullYear() - 1970);
-
-            if (total > 18) {
-              return helpers.error('user age should should be above 18 years', { value });
+              return value;
             }
-
-            return value;
           }
         }
+      }));
+      if(data.find(t=>t.phone == user.phone || t.email === user.email )){
+        res.status(400).json({
+          message:"failure",
+          details:{
+            error : "phone or email already exist"
+          }
+        })
+        return
       }
-    }));
-
-    const schema = Joi.object({
-      name: Joi.string()
-        .alphanum()
-        .min(3)
-        .max(30)
-        .required(),
-      dob: customJoi().format('YYYY-MM-dd').above18().required(),
-      phone: Joi.number().length(10).required(),
-      email: Joi.string()
-        .email({ minDomainSegments: 2, tlds: { allow: ['com', 'net'] } }),
-      address: Joi.string().min(10).required(),
-      about: Joi.string().min(10).required(),
-      tags: Joi.array().items(Joi.string()),
-      friends: Joi.array().items(Joi.object({
-        name: Joi.string(Joi.ref('name'))
-      })),
-      gender: Joi.string().valid('male', 'female').required(),
-      company: Joi.string()
-    })
-    var id = new ObjectId();
-    console.log(id.toString())
-   const {value: {}, error } = schema.validate(re.body);
-   if(error){
-    res.status(400).jsson(error)
-   }else{
-
-   }
-    const user = req.body
-    res.send(data)
+      const schema = Joi.object({
+        firstName: Joi.string().alphanum().min(3).max(30).required(),
+        lastName: Joi.string().alphanum().min(3).max(30).required(),
+        dob: customJoi.date().above18().required(),
+        phone: Joi.string().length(10).pattern(/^[0-9]+$/).required(),
+        email: Joi.string()
+          .email({ minDomainSegments: 2, tlds: { allow: ['com', 'net'] } }),
+        address: Joi.string().min(10).required(),
+        tags: Joi.array().items(Joi.string()),
+        friends: Joi.array().items(Joi.object({
+          name: Joi.string().alphanum().min(3).max(30).required()
+        })),
+        gender: Joi.string().valid('male', 'female').required(),
+        company: Joi.string()
+      })
+      var objId = new ObjectId();
+      let id = objId.toString()
+      const { value: { }, error } = schema.validate(req.body);
+      if (error) {
+        res.status(400).json({ message: "failure", error:error.details })
+      } else {
+        data.push({ ...req.body, _id: id })
+        res.send({ message: "success", data: { _id: id } })
+      }
+    } catch (error) {
+      console.log('error', error)
+      res.status(500).send({message:"failure",error:"Internal server error"})
+    }
   }
 })
+app.put("/api/users/:id", (req, res) => {
+   const data = req.params
+   console.log({data})
+   res.status(200).json({data})
+  // const user = req.body
+  // if (req.body && typeof req.body === "object" && !Array.isArray(req.body) && req.body !== null) {
+  //   try {
+  //     const customJoi = Joi.extend(joi => ({
+  //       type: 'date',
+  //       base: joi.date(),
+  //       messages: {
+  //         'date.dob': '{{#label}} must be above 18 years'
+  //       },
+  //       rules: {
+  //         above18: {
+  //           validate(value, helpers) {
+  //             var diff_ms = Date.now() - new Date(value).getTime();
+  //             var age_dt = new Date(diff_ms);
+  //             const total = Math.abs(age_dt.getUTCFullYear() - 1970);
+  //             console.log('total', total)
+  //             if (total < 18) {
+  //               return helpers.error('user age should be above 18 years', { value });
+  //             }
 
+  //             return value;
+  //           }
+  //         }
+  //       }
+  //     }));
+  //     if(data.find(t=>t.phone == user.phone || t.email === user.email )){
+  //       res.status(400).json({
+  //         message:"failure",
+  //         details:{
+  //           error : "phone or email already exist"
+  //         }
+  //       })
+  //       return
+  //     }
+  //     const schema = Joi.object({
+  //       firstName: Joi.string().alphanum().min(3).max(30).required(),
+  //       lastName: Joi.string().alphanum().min(3).max(30).required(),
+  //       dob: customJoi.date().above18().required(),
+  //       phone: Joi.string().length(10).pattern(/^[0-9]+$/).required(),
+  //       email: Joi.string()
+  //         .email({ minDomainSegments: 2, tlds: { allow: ['com', 'net'] } }),
+  //       address: Joi.string().min(10).required(),
+  //       tags: Joi.array().items(Joi.string()),
+  //       friends: Joi.array().items(Joi.object({
+  //         name: Joi.string().alphanum().min(3).max(30).required()
+  //       })),
+  //       gender: Joi.string().valid('male', 'female').required(),
+  //       company: Joi.string()
+  //     })
+  //     var objId = new ObjectId();
+  //     let id = objId.toString()
+  //     const { value: { }, error } = schema.validate(req.body);
+  //     if (error) {
+  //       res.status(400).json({ message: "failure", error:error.details })
+  //     } else {
+  //       data.push({ ...req.body, _id: id })
+  //       res.send({ message: "success", data: { _id: id } })
+  //     }
+  //   } catch (error) {
+  //     console.log('error', error)
+  //     res.status(500).send({message:"failure",error:"Internal server error"})
+  //   }
+  // }
+})
 // app.use("/api-docs", swaggerUI.serve, swaggerUI.setup(specs));
 // const routes = require('./routes/v1/index');
 
